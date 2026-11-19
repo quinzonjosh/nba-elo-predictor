@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>NBA Winner Predictor</title>
+<style>
+  body { font-family: system-ui, sans-serif; max-width: 520px; margin: 2rem auto; padding: 0 1rem; line-height: 1.5; }
+  select, button { width: 100%; padding: 0.6rem; margin: 0.25rem 0 1rem; font-size: 1rem; }
+  button { cursor: pointer; }
+  .bar { height: 14px; background: #ddd; border-radius: 7px; overflow: hidden; }
+  .fill { height: 100%; background: #e8661a; width: 0; transition: width 0.3s; }
+  .muted { color: #777; font-size: 0.9rem; }
+  @media (prefers-color-scheme: dark) {
+    body { background: #1b1b1b; color: #eee; }
+    .bar { background: #444; }
+  }
+</style>
+</head>
+<body>
+  <h1>🏀 NBA Winner Predictor</h1>
+  <p class="muted">Based on Elo ratings. Ratings reflect games through December 2022.</p>
+
+  <label>Home team</label>
+  <select id="home"></select>
+  <label>Away team</label>
+  <select id="away"></select>
+  <button id="go">Predict</button>
+
+  <div id="result" hidden>
+    <h2 id="winner"></h2>
+    <div class="bar"><div class="fill" id="fill"></div></div>
+    <p id="detail"></p>
+  </div>
+
+<script>
+let M = null;
+
+function predictHome(eloHome, eloAway) {
+  const x = [eloHome, eloAway];
+  let z = M.intercept;
+  for (let i = 0; i < 2; i++) {
+    z += M.coef[i] * ((x[i] - M.mean[i]) / M.scale[i]);
+  }
+  return 1 / (1 + Math.exp(-z));
+}
+
+fetch("model.json")
+  .then(r => r.json())
+  .then(data => {
+    M = data;
+    const teams = Object.keys(M.team_elo).sort();
+    for (const id of ["home", "away"]) {
+      const sel = document.getElementById(id);
+      teams.forEach(t => sel.add(new Option(t, t)));
+    }
+    document.getElementById("away").selectedIndex = 1;
+  })
+  .catch(() => { document.body.insertAdjacentHTML("beforeend", "<p>Could not load model.json.</p>"); });
+
+document.getElementById("go").onclick = () => {
+  const home = document.getElementById("home").value;
+  const away = document.getElementById("away").value;
+  const result = document.getElementById("result");
+  result.hidden = false;
+  if (home === away) {
+    document.getElementById("winner").textContent = "Pick two different teams.";
+    document.getElementById("detail").textContent = "";
+    document.getElementById("fill").style.width = "0";
+    return;
+  }
+  const p = predictHome(M.team_elo[home], M.team_elo[away]);
+  document.getElementById("winner").textContent = "Predicted winner: " + (p >= 0.5 ? home : away);
+  document.getElementById("fill").style.width = (p * 100) + "%";
+  document.getElementById("detail").textContent =
+    home + ": " + Math.round(p * 100) + "%  |  " + away + ": " + Math.round((1 - p) * 100) + "%";
+};
+</script>
+</body>
+</html>
